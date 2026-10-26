@@ -201,7 +201,11 @@ export default function Dashboard({ user, onLogout }) {
 
         setOrders(formattedOrders);
         if (formattedOrders.length > 0) {
-          setSelectedOrder(current => current || formattedOrders[0]);
+          // Do not auto-select; keep existing selection only if it still exists
+          setSelectedOrder(current => {
+            if (!current) return null;
+            return formattedOrders.find(o => o.orderId === current.orderId) || null;
+          });
         }
         setLoadingOrders(false);
       })
@@ -628,8 +632,7 @@ export default function Dashboard({ user, onLogout }) {
                     className={`statusTab${statusFilter === status ? ' selected' : ''}`}
                     onClick={() => {
                       setStatusFilter(status);
-                      const matchingOrders = orders.filter(order => order.status.toLowerCase() === status.toLowerCase());
-                      if (matchingOrders.length > 0) setSelectedOrder(matchingOrders[0]);
+                      setSelectedOrder(null);
                     }}
                   >
                     {status} <span>{orders.filter(order => order.status.toLowerCase() === status.toLowerCase()).length}</span>
@@ -644,8 +647,15 @@ export default function Dashboard({ user, onLogout }) {
             </div>
 
             <div style={styles.splitViewWrapper}>
-              <div style={styles.masterListColumn}>
-                <div style={styles.scrollableCards}>
+              <div style={{
+                ...styles.masterListColumn,
+                flex: selectedOrder ? '1 1 50%' : '1 1 100%'
+              }}>
+                <div style={{
+                  ...styles.scrollableCards,
+                  display: selectedOrder ? 'flex' : 'grid',
+                  gridTemplateColumns: selectedOrder ? undefined : 'repeat(auto-fill, minmax(320px, 1fr))'
+                }}>
                   {loadingOrders ? (
                     <div style={{padding: '30px', textAlign: 'center', color: '#64748b', fontWeight: '700', fontSize: '13px'}}>Loading live database orders...</div>
                   ) : filteredOrders.length === 0 ? (
@@ -657,9 +667,14 @@ export default function Dashboard({ user, onLogout }) {
                       return (
                         <div 
                           key={order.orderId || order.id} 
-                          className="orderSummary"
-                          style={{ ...styles.orderSummaryCard, borderColor: isSelected || isHovered ? '#2563eb' : '#cbd5e1', backgroundColor: '#fff' }}
-                          onClick={() => setSelectedOrder(order)}
+                          className={`orderSummary ${isSelected ? 'selectedOrderCard' : ''}`}
+                          style={{ 
+                            ...styles.orderSummaryCard, 
+                            borderColor: isSelected ? '#05c98a' : isHovered ? '#2563eb' : '#cbd5e1', 
+                            backgroundColor: isSelected ? '#f0fdf4' : '#fff',
+                            boxShadow: isSelected ? '0 0 0 2px #05c98a, 0 4px 14px rgba(5, 201, 138, 0.18)' : '0 1px 3px rgba(0,0,0,0.05)'
+                          }}
+                          onClick={() => setSelectedOrder(prev => prev?.orderId === order.orderId ? null : order)}
                           onMouseEnter={() => setHoveredCardId(order.orderId)}
                           onMouseLeave={() => setHoveredCardId(null)}
                         >
@@ -692,15 +707,37 @@ export default function Dashboard({ user, onLogout }) {
                 </div>
               </div>
 
-              <div style={styles.detailPanelColumn}>
-                <div className="detailPanelHeading">
-                  <div style={styles.listHeaderTitle}>Selected order</div>
-                  {selectedOrder && (
-                    <button onClick={handlePrintReceipt} className="detailPrintButton" title="Print order">⎙</button>
-                  )}
-                </div>
+              {selectedOrder && (
+                <div style={styles.detailPanelColumn}>
+                  <div className="detailPanelHeading" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={styles.listHeaderTitle}>Selected order</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <button onClick={handlePrintReceipt} className="detailPrintButton" title="Print order">⎙</button>
+                      <button 
+                        type="button"
+                        onClick={() => setSelectedOrder(null)} 
+                        className="closeDetailButton" 
+                        title="Close selected order"
+                        style={{
+                          background: '#fee2e2',
+                          border: '1.5px solid #fca5a5',
+                          borderRadius: '8px',
+                          padding: '6px 12px',
+                          cursor: 'pointer',
+                          fontSize: '12px',
+                          fontWeight: '800',
+                          color: '#991b1b',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          transition: 'all 0.2s'
+                        }}
+                      >
+                        ✕ Close
+                      </button>
+                    </div>
+                  </div>
 
-                {selectedOrder ? (
                   <div className="orderDetailCard" id="printable-thermal-receipt">
                     <div className="detailTopline">
                       <div>
@@ -775,10 +812,8 @@ export default function Dashboard({ user, onLogout }) {
                       )}
                     </div>
                   </div>
-                ) : (
-                  <div className="emptyDetail">Select an order to view its details.</div>
-                )}
-              </div>
+                </div>
+              )}
             </div>
           </div>
         )}
